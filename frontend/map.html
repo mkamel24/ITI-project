@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Map</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    /* make leaflet controls match light UI a bit */
+    .leaflet-control-zoom a {
+      border-radius: 10px !important;
+      border: 1px solid #e5e7eb !important;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="container">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap">
+        <div>
+          <h2 class="title" style="margin:0" data-i18n="map_title"></h2>
+          <div class="muted" data-i18n="map_desc"></div>
+        </div>
+        <div class="badge">WFS / GeoServer</div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="map-layout">
+        <div class="card map-shell">
+          <div id="map"></div>
+          <div class="map-actions">
+            <button class="btn soft" id="btnClear">🧹 <span data-i18n="btn_clear"></span></button>
+            <button class="btn soft" id="btnRefresh">⟳ <span data-i18n="btn_refresh"></span></button>
+            <button class="btn primary" id="btnSave">💾 <span data-i18n="btn_save"></span></button>
+          </div>
+        </div>
+
+        <aside class="card pad-lg">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+            <div style="font-weight:900; color:var(--navy)">Egypt Engineering Finder</div>
+            <button class="btn soft" id="btnPing" title="health">🩺</button>
+          </div>
+          <div class="hr"></div>
+
+          <div class="form">
+         
+
+            <div>
+              <div class="label" data-i18n="quick_search"></div>
+              <input id="q" class="input" data-i18n="quick_search" data-i18n-placeholder placeholder="..." />
+            </div>
+
+            <div>
+              <div class="label" data-i18n="choose_college"></div>
+              <select id="collegeSel"></select>
+            </div>
+
+            <div>
+              <div class="label" data-i18n="choose_hub"></div>
+              <select id="hubSel"></select>
+            </div>
+
+            <div>
+              <div class="label" data-i18n="speed"></div>
+              <select id="speedSel">
+                <option value="40">40</option>
+                <option value="50">50</option>
+                <option value="60" selected>60</option>
+                <option value="70">70</option>
+                <option value="80">80</option>
+              </select>
+              <div class="help">* يؤثر على حساب الوقت فقط.</div>
+            </div>
+
+            <div class="grid two">
+              <button class="btn soft" id="btnZoom">🔎 <span data-i18n="btn_zoom"></span></button>
+              <button class="btn soft" id="btnNearest">🚌 <span data-i18n="btn_nearest"></span></button>
+            </div>
+
+            <button class="btn primary" id="btnRoute">🧭 <span data-i18n="btn_route"></span></button>
+
+            <div id="err"></div>
+
+            <div class="card pad" style="box-shadow:none">
+              <div class="kpi">
+                <div class="row"><b data-i18n="selected_college"></b><span id="collegeName">-</span></div>
+                <div class="row"><b data-i18n="selected_hub"></b><span id="hubName">-</span></div>
+                <div class="hr"></div>
+                <div class="row"><b data-i18n="distance_km"></b><span id="distKm">-</span></div>
+                <div class="row"><b data-i18n="time_min"></b><span id="timeMin">-</span></div>
+              </div>
+            </div>
+
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    // ---------- Map ----------
+    const map = L.map("map").setView([26.8, 30.8], 6);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+
+    map.createPane("routes");
+    map.getPane("routes").style.zIndex = 350;
+    map.createPane("points");
+    map.getPane("points").style.zIndex = 450;
+
+    // ---------- UI refs ----------
+    const apiBaseEl = document.getElementById("apiBase");
+    const qEl = document.getElementById("q");
+    const collegeSel = document.getElementById("collegeSel");
+    const hubSel = document.getElementById("hubSel");
+    const speedSel = document.getElementById("speedSel");
+
+    const collegeNameEl = document.getElementById("collegeName");
+    const hubNameEl = document.getElementById("hubName");
+    const distKmEl = document.getElementById("distKm");
+    const timeMinEl = document.getElementById("timeMin");
+    const errWrap = document.getElementById("err");
+
+    apiBaseEl.value = window.APP_CONFIG.API_BASE;
+
+    apiBaseEl.addEventListener("change", () => {
+      setApiBase(apiBaseEl.value);
+    });
+
+    function setErr(msg) {
+      errWrap.innerHTML = msg ? ('<div class="error">' + msg + '</div>') : '';
+    }
+
+    // ---------- Marker icon (zoom adaptive) ----------
+    function sizeForZoom(z) {
+      const s = 16 + (z - 6) * 2.2;
+      return Math.max(18, Math.min(34, s));
+    }
+
+    function makeIcon(kind, zoom) {
+      const s = Math.round(sizeForZoom(zoom));
+      const iconHtml = kind === "college"
+        ? `<div style="width:${s}px;height:${s}px;border-radius:999px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;border:2px solid #16a34a;box-shadow:0 6px 18px rgba(0,0,0,.12)"><i class="fa-solid fa-graduation-cap" style="color:#16a34a;font-size:${Math.round(s*0.55)}px"></i></div>`
+        : `<div style="width:${s}px;height:${s}px;border-radius:999px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;border:2px solid #f97316;box-shadow:0 6px 18px rgba(0,0,0,.12)"><i class="fa-solid fa-bus" style="color:#f97316;font-size:${Math.round(s*0.55)}px"></i></div>`;
+
+      return L.divIcon({
+        className: "",
+        html: iconHtml,
+        iconSize: [s, s],
+        iconAnchor: [s/2, s/2],
+        popupAnchor: [0, -s/2]
+      });
+    }
+
+    // ---------- Data holders ----------
+    let collegesList = [];
+    let hubsList = [];
+    let collegesGeo = null;
+    let hubsGeo = null;
+
+    let collegesLayer = null;
+    let hubsLayer = null;
+    let routeLayer = null;
+
+    const markerByCollegeId = new Map();
+    const markerByHubId = new Map();
+
+    function clearRoute() {
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+      }
+      distKmEl.textContent = "-";
+      timeMinEl.textContent = "-";
+      setErr("");
+    }
+
+    // ---------- Populate dropdowns ----------
+    function fillSelect(sel, items, getText) {
+      const prev = sel.value;
+      sel.innerHTML = `<option value="">—</option>`;
+      for (const it of items) {
+        const opt = document.createElement("option");
+        opt.value = String(it.id);
+        opt.textContent = getText(it);
+        sel.appendChild(opt);
+      }
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    }
+
+    function applyFilter() {
+      const q = (qEl.value || "").trim().toLowerCase();
+      const filteredColleges = !q ? collegesList : collegesList.filter(c => (c.name || "").toLowerCase().includes(q));
+      const filteredHubs = !q ? hubsList : hubsList.filter(h => (h.name || "").toLowerCase().includes(q));
+      fillSelect(collegeSel, filteredColleges, (c) => c.name || `College #${c.id}`);
+      fillSelect(hubSel, filteredHubs, (h) => h.name || `Hub #${h.id}`);
+    }
+
+    // ---------- Draw layers ----------
+    function drawPointLayers() {
+      markerByCollegeId.clear();
+      markerByHubId.clear();
+
+      if (collegesLayer) map.removeLayer(collegesLayer);
+      if (hubsLayer) map.removeLayer(hubsLayer);
+
+      const z = map.getZoom();
+
+      collegesLayer = L.geoJSON(collegesGeo, {
+        pane: "points",
+        pointToLayer: (feature, latlng) => {
+          const id = feature?.properties?.id;
+          const m = L.marker(latlng, { icon: makeIcon("college", z) });
+          if (id != null) markerByCollegeId.set(Number(id), m);
+
+          const p = feature.properties || {};
+          const popup = `
+            <div style="font-family:Cairo,Arial;min-width:220px">
+              <div><b>${p.name || "College"}</b></div>
+              ${p.type ? `<div>Type: ${p.type}</div>` : ""}
+              ${p.min_score_required != null ? `<div>Min score: ${p.min_score_required}</div>` : ""}
+              ${p.fees != null ? `<div>Fees: ${p.fees}</div>` : ""}
+            </div>
+          `;
+          m.bindPopup(popup);
+          m.on("click", () => {
+            if (id != null) {
+              collegeSel.value = String(id);
+              onCollegeChange();
+            }
+          });
+          return m;
+        }
+      }).addTo(map);
+
+      hubsLayer = L.geoJSON(hubsGeo, {
+        pane: "points",
+        pointToLayer: (feature, latlng) => {
+          const id = feature?.properties?.id;
+          const m = L.marker(latlng, { icon: makeIcon("hub", z) });
+          if (id != null) markerByHubId.set(Number(id), m);
+
+          const p = feature.properties || {};
+          m.bindPopup(`<div style="font-family:Cairo,Arial"><b>${p.name || "Bus Hub"}</b></div>`);
+          m.on("click", () => {
+            if (id != null) {
+              hubSel.value = String(id);
+              onHubChange();
+            }
+          });
+          return m;
+        }
+      }).addTo(map);
+    }
+
+    function updateMarkerIconsForZoom() {
+      const z = map.getZoom();
+      for (const m of markerByCollegeId.values()) m.setIcon(makeIcon("college", z));
+      for (const m of markerByHubId.values()) m.setIcon(makeIcon("hub", z));
+    }
+    map.on("zoomend", updateMarkerIconsForZoom);
+
+    // ---------- Load all ----------
+    async function loadAll() {
+      clearRoute();
+      setErr("تحميل البيانات...");
+
+      try {
+        // NOTE: apiFetch unwraps both wrapped and raw
+        const [colList, hubList, colGeo, hubGeo] = await Promise.all([
+          apiFetch("/api/colleges/list"),
+          apiFetch("/api/bus_hubs/list"),
+          apiFetch("/api/wfs/data?limit=50000"),
+          apiFetch("/api/wfs/bus_hubs?limit=50000"),
+        ]);
+
+        collegesList = Array.isArray(colList) ? colList : [];
+        hubsList = Array.isArray(hubList) ? hubList : [];
+        collegesGeo = colGeo;
+        hubsGeo = hubGeo;
+
+        applyFilter();
+        drawPointLayers();
+        setErr("");
+
+        // URL preselect
+        const params = new URLSearchParams(location.search);
+        const preCollege = params.get("college_id");
+        if (preCollege) {
+          collegeSel.value = String(preCollege);
+          onCollegeChange();
+          // zoom to it if marker exists
+          const m = markerByCollegeId.get(Number(preCollege));
+          if (m) {
+            map.setView(m.getLatLng(), 12);
+            m.openPopup();
+          }
+        }
+
+      } catch (e) {
+        setErr(String(e.message || e));
+      }
+    }
+
+    // ---------- Selections ----------
+    function findCollegeName(id) {
+      const c = collegesList.find(x => Number(x.id) === Number(id));
+      return c?.name || "-";
+    }
+    function findHubName(id) {
+      const h = hubsList.find(x => Number(x.id) === Number(id));
+      return h?.name || "-";
+    }
+    function onCollegeChange() {
+      clearRoute();
+      const id = Number(collegeSel.value);
+      collegeNameEl.textContent = id ? findCollegeName(id) : "-";
+    }
+    function onHubChange() {
+      clearRoute();
+      const id = Number(hubSel.value);
+      hubNameEl.textContent = id ? findHubName(id) : "-";
+    }
+
+    collegeSel.addEventListener("change", onCollegeChange);
+    hubSel.addEventListener("change", onHubChange);
+    qEl.addEventListener("input", applyFilter);
+
+    // ---------- Buttons ----------
+    document.getElementById("btnRefresh").addEventListener("click", loadAll);
+    document.getElementById("btnClear").addEventListener("click", () => {
+      clearRoute();
+      setErr("");
+    });
+
+    document.getElementById("btnPing").addEventListener("click", async ()=>{
+      try{
+        const d = await apiFetch("/health");
+        setErr("");
+        alert("OK ✅ " + JSON.stringify(d));
+      }catch(e){
+        setErr("Health failed: " + (e.message||e));
+      }
+    });
+
+    document.getElementById("btnZoom").addEventListener("click", () => {
+      const cid = Number(collegeSel.value);
+      const hid = Number(hubSel.value);
+
+      if (cid && markerByCollegeId.get(cid)) {
+        map.setView(markerByCollegeId.get(cid).getLatLng(), 12);
+        markerByCollegeId.get(cid).openPopup();
+        return;
+      }
+      if (hid && markerByHubId.get(hid)) {
+        map.setView(markerByHubId.get(hid).getLatLng(), 13);
+        markerByHubId.get(hid).openPopup();
+        return;
+      }
+      setErr("اختر كلية/محطة أولاً ثم Zoom.");
+    });
+
+    document.getElementById("btnNearest").addEventListener("click", async () => {
+      clearRoute();
+      const cid = Number(collegeSel.value);
+      if (!cid) return setErr("اختار كلية الأول.");
+
+      try {
+        const data = await apiFetch(`/api/hubs/nearest?college_id=${cid}`);
+        // data = {hub_id, hub_name, dist_m}
+        hubSel.value = String(data.hub_id);
+        onHubChange();
+        setErr(`تم اختيار أقرب محطة: ${data.hub_name} (≈ ${Math.round(data.dist_m)} m)`);
+      } catch (e) {
+        setErr(String(e.message || e));
+      }
+    });
+
+    document.getElementById("btnRoute").addEventListener("click", async () => {
+      clearRoute();
+
+      const cid = Number(collegeSel.value);
+      const hid = Number(hubSel.value);
+      const speed = Number(speedSel.value || 60);
+      if (!cid || !hid) return setErr("لازم تختار كلية ومحطة باص الأول.");
+
+      try {
+        const data = await apiFetch(`/api/routing?hub_id=${hid}&college_id=${cid}&speed_kmh=${speed}`);
+
+        const feature = { type: "Feature", geometry: data.route_geojson, properties: {} };
+        routeLayer = L.geoJSON(feature, {
+          pane: "routes",
+          style: { weight: 5, opacity: 0.9 }
+        }).addTo(map);
+
+        map.fitBounds(routeLayer.getBounds(), { padding: [20, 20] });
+
+        distKmEl.textContent = (Number(data.distance_m) / 1000).toFixed(2);
+        timeMinEl.textContent = Number(data.time_min).toFixed(1);
+
+        setErr("");
+      } catch (e) {
+        setErr(String(e.message || e));
+      }
+    });
+
+    document.getElementById("btnSave").addEventListener("click", async ()=>{
+      const token = localStorage.getItem("token");
+      if (!token) {
+        return setErr("لازم تسجّل دخول كطالب علشان تحفظ اختيارك.");
+      }
+      const u = JSON.parse(localStorage.getItem("user")||"null");
+      if (u?.role && u.role !== "student") {
+        return setErr("الحفظ متاح للطلاب فقط.");
+      }
+      const cid = Number(collegeSel.value);
+      const hid = hubSel.value ? Number(hubSel.value) : null;
+      if (!cid) return setErr("اختار كلية الأول.");
+      try{
+        const payload = { college_id: cid };
+        if (hid) payload.hub_id = hid;
+        await apiFetch("/api/choices", {
+          method:"POST",
+          body: JSON.stringify(payload)
+        });
+        setErr("");
+        alert("✅ تم حفظ الاختيار في لوحة الطالب");
+      }catch(e){
+        setErr(e.message||String(e));
+      }
+    });
+
+    // init
+    loadAll();
+
+    // fix occasional blank map when inside flex/layout
+    setTimeout(()=>map.invalidateSize(), 250);
+  </script>
+</body>
+</html>

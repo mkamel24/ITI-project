@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Forgot</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="card pad-lg" style="max-width:640px; margin-inline:auto">
+        <h2 class="title" data-i18n="auth_forgot"></h2>
+        <p class="muted">اكتب بريدك لإرسال كود إعادة التعيين (Demo: السيرفر قد يرجع الكود للواجهة).</p>
+        <div id="msg"></div>
+
+        <form class="form" id="forgotForm">
+          <div>
+            <div class="label" data-i18n="email"></div>
+            <input class="input" type="email" id="email" required data-i18n="email" data-i18n-placeholder />
+          </div>
+          <button class="btn primary" type="submit">✉️ <span data-i18n="btn_send_code"></span></button>
+          <a class="btn soft" href="reset.html">🔁 <span data-i18n="auth_reset"></span></a>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    const msg = document.getElementById("msg");
+    const form = document.getElementById("forgotForm");
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      msg.innerHTML = "";
+      try{
+        const email = document.getElementById("email").value.trim();
+        const data = await apiFetch("/api/auth/forgot", {
+          method:"POST",
+          body: JSON.stringify({email})
+        });
+        // server demo may return code
+        const code = data?.code;
+        msg.innerHTML = '<div class="success">✅ تم إرسال الطلب. ' + (code ? ('الكود (Demo): <b>' + code + '</b>') : '') + '</div>';
+        setTimeout(()=>location.href = "reset.html?email=" + encodeURIComponent(email), 900);
+      }catch(err){
+        msg.innerHTML = '<div class="error">❌ ' + (err.message||err) + '</div>';
+      }
+    });
+  </script>
+</body>
+</html>

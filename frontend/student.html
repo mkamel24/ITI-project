@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Student Dashboard</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="grid two">
+        <div class="card pad-lg">
+          <h2 class="title" data-i18n="nav_student"></h2>
+          <p class="muted">اختياراتك المحفوظة من الخريطة.</p>
+          <div id="msg"></div>
+          <div style="overflow:auto">
+            <table class="table" id="tbl">
+              <thead>
+                <tr>
+                  <th>College</th>
+                  <th>Hub</th>
+                  <th>Distance</th>
+                  <th>Time</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card pad-lg">
+          <h3 class="title">Compare</h3>
+          <p class="muted">اختر كليتين من اختياراتك للمقارنة.</p>
+
+          <div class="form">
+            <div>
+              <div class="label">Choice A</div>
+              <select id="a"></select>
+            </div>
+            <div>
+              <div class="label">Choice B</div>
+              <select id="b"></select>
+            </div>
+            <button class="btn soft" id="btnCompare">⚖️ Compare</button>
+          </div>
+
+          <div class="hr"></div>
+          <div id="cmp" class="muted">—</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    const msg = document.getElementById("msg");
+    const tbody = document.querySelector("#tbl tbody");
+    const selA = document.getElementById("a");
+    const selB = document.getElementById("b");
+    const cmp = document.getElementById("cmp");
+    let items = [];
+    let colleges = [];
+
+    function showError(t){ msg.innerHTML = '<div class="error">❌ '+t+'</div>'; }
+    function showOk(t){ msg.innerHTML = '<div class="success">✅ '+t+'</div>'; }
+
+    function fillChoiceSelect(sel){
+      sel.innerHTML = '<option value="">—</option>';
+      items.forEach((it, idx)=>{
+        const opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = (it.college_name||("College #"+it.college_id)) + " • " + (it.hub_name||("Hub #"+it.hub_id));
+        sel.appendChild(opt);
+      });
+    }
+
+    function renderTable(){
+      tbody.innerHTML = "";
+      for (const it of items){
+        const tr = document.createElement("tr");
+        const km = it.route_distance_m != null ? (Number(it.route_distance_m)/1000).toFixed(2)+" km" : "-";
+        const min = it.route_time_s != null ? (Number(it.route_time_s)/60).toFixed(1)+" min" : "-";
+        tr.innerHTML = `
+          <td><b>${it.college_name||("-")}</b><div class="small">${it.college_id}</div></td>
+          <td>${it.hub_name||("-")}</td>
+          <td>${km}</td>
+          <td>${min}</td>
+          <td class="small">${it.chosen_at ? new Date(it.chosen_at).toLocaleString() : "-"}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function collegeById(id){ return colleges.find(c=>Number(c.id)===Number(id)); }
+
+    document.getElementById("btnCompare").onclick = ()=>{
+      cmp.innerHTML = "";
+      const ia = selA.value ? items[Number(selA.value)] : null;
+      const ib = selB.value ? items[Number(selB.value)] : null;
+      if (!ia || !ib) return cmp.innerHTML = '<div class="error">اختر اختيارين للمقارنة.</div>';
+
+      const ca = collegeById(ia.college_id) || {};
+      const cb = collegeById(ib.college_id) || {};
+
+      cmp.innerHTML = `
+        <div class="grid two">
+          <div class="card pad" style="box-shadow:none">
+            <div style="font-weight:900; color:var(--navy)">${ia.college_name||"A"}</div>
+            <div class="kpi">
+              <div class="row"><b>Min score</b><span>${ca.min_score_required ?? "-"}</span></div>
+              <div class="row"><b>Fees</b><span>${ca.fees ?? "-"}</span></div>
+              <div class="row"><b>Governorate</b><span>${ca.governorate ?? "-"}</span></div>
+              <div class="row"><b>Distance</b><span>${(Number(ia.route_distance_m||0)/1000).toFixed(2)} km</span></div>
+            </div>
+          </div>
+          <div class="card pad" style="box-shadow:none">
+            <div style="font-weight:900; color:var(--navy)">${ib.college_name||"B"}</div>
+            <div class="kpi">
+              <div class="row"><b>Min score</b><span>${cb.min_score_required ?? "-"}</span></div>
+              <div class="row"><b>Fees</b><span>${cb.fees ?? "-"}</span></div>
+              <div class="row"><b>Governorate</b><span>${cb.governorate ?? "-"}</span></div>
+              <div class="row"><b>Distance</b><span>${(Number(ib.route_distance_m||0)/1000).toFixed(2)} km</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    (async ()=>{
+      const u = JSON.parse(localStorage.getItem("user")||"null");
+      if (!localStorage.getItem("token")) return showError("سجّل الدخول أولاً.");
+      if (u?.role && u.role !== "student") return showError("هذه الصفحة للطلاب فقط.");
+
+      try{
+        const d = await apiFetch("/api/choices/mine");
+        items = d.items || d?.data?.items || d?.items || [];
+        renderTable();
+        fillChoiceSelect(selA);
+        fillChoiceSelect(selB);
+      }catch(e){ showError(e.message||String(e)); }
+
+      try{
+        const c = await apiFetch("/api/colleges/list");
+        colleges = Array.isArray(c) ? c : [];
+      }catch{}
+    })();
+  </script>
+</body>
+</html>

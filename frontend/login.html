@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="grid two">
+        <div class="card pad-lg">
+          <h2 class="title" data-i18n="auth_login"></h2>
+          <p class="muted">—</p>
+          <div id="msg"></div>
+
+          <form class="form" id="loginForm">
+            <div>
+              <div class="label" data-i18n="email"></div>
+              <input class="input" type="email" id="email" required data-i18n="email" data-i18n-placeholder />
+            </div>
+            <div>
+              <div class="label" data-i18n="password"></div>
+              <input class="input" type="password" id="password" required data-i18n="password" data-i18n-placeholder />
+            </div>
+            <button class="btn primary" type="submit">🔑 <span data-i18n="btn_login"></span></button>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <a class="btn soft" href="forgot.html">❓ <span data-i18n="auth_forgot"></span></a>
+              <a class="btn soft" href="register.html">➕ <span data-i18n="nav_register"></span></a>
+            </div>
+
+            <div class="hr"></div>
+            <button class="btn gold" id="googleBtn" type="button">G <span data-i18n="btn_google"></span></button>
+            <div class="help">* زر Google يحتاج Endpoint في الباك اند (مثلاً /api/auth/google).</div>
+          </form>
+        </div>
+
+
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    const apiBaseEl = document.getElementById("apiBase");
+    apiBaseEl.value = window.APP_CONFIG.API_BASE;
+    document.getElementById("saveBase").onclick = () => {
+      setApiBase(apiBaseEl.value);
+      location.reload();
+    };
+    document.getElementById("googleBtn").onclick = () => {
+      // adjust if you implement google auth in backend
+      window.location.href = apiUrl("/api/auth/google");
+    };
+    function setMsg(html) {
+      const el = document.getElementById("msg");
+      el.innerHTML = html || "";
+    }
+    document.getElementById("loginForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      setMsg("");
+      try {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        const data = await apiFetch("/api/auth/login", {
+          method:"POST",
+          body: JSON.stringify({email, password})
+        });
+        // data: {token, user}
+        const token = data.token || data?.data?.token;
+        const user = data.user || data?.data?.user;
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
+        setMsg('<div class="success">✅ تم تسجيل الدخول بنجاح</div>');
+        setTimeout(()=>{
+          if (user?.role === "admin") location.href = "admin.html";
+          else location.href = "student.html";
+        }, 600);
+      } catch(err) {
+        setMsg('<div class="error">❌ ' + (err.message || err) + '</div>');
+      }
+    });
+  </script>
+</body>
+</html>

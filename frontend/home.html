@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Home</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <section class="hero">
+        <h1 data-i18n="home_title"></h1>
+        <p data-i18n="home_desc"></p>
+        <div class="cta-row">
+          <a class="btn primary" href="map.html">🗺️ <span data-i18n="nav_map"></span></a>
+          <a class="btn soft" href="colleges.html">🏛️ <span data-i18n="nav_colleges"></span></a>
+        </div>
+      </section>
+
+      <div style="height:16px"></div>
+
+      <section class="grid three">
+        <div class="card pad">
+          <h3 class="title" data-i18n="feat_1_t"></h3>
+          <p class="muted" data-i18n="feat_1_d"></p>
+        </div>
+        <div class="card pad">
+          <h3 class="title" data-i18n="feat_2_t"></h3>
+          <p class="muted" data-i18n="feat_2_d"></p>
+        </div>
+        <div class="card pad">
+          <h3 class="title" data-i18n="feat_3_t"></h3>
+          <p class="muted" data-i18n="feat_3_d"></p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+</body>
+</html>

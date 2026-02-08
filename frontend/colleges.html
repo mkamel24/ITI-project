@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Colleges</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="grid two">
+        <div class="card pad-lg">
+          <h2 class="title" data-i18n="nav_colleges"></h2>
+          <p class="muted">اعرض تفاصيل كليات/جامعات الهندسة من قاعدة البيانات (جدول data).</p>
+
+          <div class="form">
+            <div>
+              <div class="label">Search</div>
+              <input class="input" id="q" data-i18n="quick_search" data-i18n-placeholder placeholder="..." />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+          <div style="overflow:auto">
+            <table class="table" id="tbl">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Governorate</th>
+                  <th>Min score</th>
+                  <th>Fees</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card pad-lg" id="details">
+          <h3 class="title">Details</h3>
+          <div class="muted">اختر كلية من الجدول لعرض التفاصيل.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    let all = [];
+    const tbody = document.querySelector("#tbl tbody");
+    const q = document.getElementById("q");
+    const details = document.getElementById("details");
+
+    function render(list){
+      tbody.innerHTML = "";
+      for (const c of list){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${c.id}</td>
+          <td><b>${c.name||""}</b><div class="small">${c.type||""}</div></td>
+          <td>${c.governorate||"-"}</td>
+          <td>${c.min_score_required ?? "-"}</td>
+          <td>${c.fees ?? "-"}</td>
+        `;
+        tr.style.cursor = "pointer";
+        tr.onclick = ()=>showDetails(c);
+        tbody.appendChild(tr);
+      }
+    }
+    function showDetails(c){
+      details.innerHTML = `
+        <h3 class="title">${c.name||""}</h3>
+        <div class="kpi">
+          <div class="row"><b>Type</b><span>${c.type||"-"}</span></div>
+          <div class="row"><b>Governorate</b><span>${c.governorate||"-"}</span></div>
+          <div class="row"><b>Min score</b><span>${c.min_score_required ?? "-"}</span></div>
+          <div class="row"><b>Fees</b><span>${c.fees ?? "-"}</span></div>
+          <div class="row"><b>Capacity</b><span>${c.capacity ?? "-"}</span></div>
+          <div class="row"><b>Period</b><span>${c.education_period ?? "-"}</span></div>
+        </div>
+        <div class="hr"></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap">
+          <a class="btn primary" href="map.html?college_id=${encodeURIComponent(c.id)}">🗺️ View on map</a>
+          ${c.access_url ? `<a class="btn soft" target="_blank" rel="noreferrer" href="${c.access_url}">🔗 Website</a>` : ""}
+        </div>
+      `;
+    }
+    q.addEventListener("input", ()=>{
+      const s = q.value.trim().toLowerCase();
+      if (!s) return render(all);
+      render(all.filter(c=> String(c.name||"").toLowerCase().includes(s) || String(c.governorate||"").toLowerCase().includes(s)));
+    });
+
+    (async ()=>{
+      try{
+        const data = await apiFetch("/api/colleges/list");
+        all = Array.isArray(data) ? data : (data||[]);
+        render(all);
+      }catch(err){
+        details.innerHTML = '<div class="error">❌ '+(err.message||err)+'</div>';
+      }
+    })();
+  </script>
+</body>
+</html>

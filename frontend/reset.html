@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reset</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="card pad-lg" style="max-width:640px; margin-inline:auto">
+        <h2 class="title" data-i18n="auth_reset"></h2>
+        <p class="muted">اكتب البريد + الكود + كلمة المرور الجديدة.</p>
+        <div id="msg"></div>
+
+        <form class="form" id="resetForm">
+          <div>
+            <div class="label" data-i18n="email"></div>
+            <input class="input" type="email" id="email" required data-i18n="email" data-i18n-placeholder />
+          </div>
+          <div>
+            <div class="label" data-i18n="code"></div>
+            <input class="input" id="code" required data-i18n="code" data-i18n-placeholder />
+          </div>
+
+          <div class="grid two">
+            <div>
+              <div class="label" data-i18n="new_password"></div>
+              <input class="input" type="password" id="p1" required data-i18n="new_password" data-i18n-placeholder />
+            </div>
+            <div>
+              <div class="label" data-i18n="password2"></div>
+              <input class="input" type="password" id="p2" required data-i18n="password2" data-i18n-placeholder />
+            </div>
+          </div>
+
+          <button class="btn primary" type="submit">🔁 <span data-i18n="btn_submit"></span></button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const preEmail = params.get("email");
+    if (preEmail) document.getElementById("email").value = preEmail;
+
+    const msg = document.getElementById("msg");
+    document.getElementById("resetForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      msg.innerHTML = "";
+      const p1 = document.getElementById("p1").value;
+      const p2 = document.getElementById("p2").value;
+      if (p1 !== p2) return msg.innerHTML = '<div class="error">❌ كلمات المرور غير متطابقة</div>';
+      try{
+        const email = document.getElementById("email").value.trim();
+        const code = document.getElementById("code").value.trim();
+        await apiFetch("/api/auth/reset", {
+          method:"POST",
+          body: JSON.stringify({email, code, new_password: p1})
+        });
+        msg.innerHTML = '<div class="success">✅ تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن.</div>';
+        setTimeout(()=>location.href="login.html", 900);
+      }catch(err){
+        msg.innerHTML = '<div class="error">❌ ' + (err.message||err) + '</div>';
+      }
+    });
+  </script>
+</body>
+</html>

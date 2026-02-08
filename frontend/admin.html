@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Dashboard</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="grid two">
+        <div class="card pad-lg">
+          <h2 class="title" data-i18n="nav_admin"></h2>
+          <p class="muted">متابعة اختيارات الطلاب.</p>
+          <div id="msg"></div>
+
+          <div class="form">
+            <div>
+              <div class="label">Filter (college / student)</div>
+              <input class="input" id="q" placeholder="..." />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+          <div id="stats" class="muted">—</div>
+        </div>
+
+        <div class="card pad-lg" style="overflow:auto">
+          <table class="table" id="tbl">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>College</th>
+                <th>Hub</th>
+                <th>Distance</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    const msg = document.getElementById("msg");
+    const tbody = document.querySelector("#tbl tbody");
+    const q = document.getElementById("q");
+    const statsEl = document.getElementById("stats");
+    let all = [];
+
+    function showError(t){ msg.innerHTML = '<div class="error">❌ '+t+'</div>'; }
+    function render(list){
+      tbody.innerHTML = "";
+      for (const it of list){
+        const km = it.route_distance_m != null ? (Number(it.route_distance_m)/1000).toFixed(2)+" km" : "-";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><b>${it.student_name||"-"}</b><div class="small">${it.student_email||""}</div></td>
+          <td><b>${it.college_name||"-"}</b><div class="small">#${it.college_id}</div></td>
+          <td>${it.hub_name||"-"}</td>
+          <td>${km}</td>
+          <td class="small">${it.chosen_at ? new Date(it.chosen_at).toLocaleString() : "-"}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      // stats
+      const byCollege = new Map();
+      for (const it of list){
+        const key = it.college_name || ("#" + it.college_id);
+        byCollege.set(key, (byCollege.get(key)||0)+1);
+      }
+      const top = [...byCollege.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+      statsEl.innerHTML = '<b>Top colleges:</b> ' + (top.length ? top.map(([k,v])=>`${k} (${v})`).join(" • ") : "-");
+    }
+
+    q.addEventListener("input", ()=>{
+      const s = q.value.trim().toLowerCase();
+      if (!s) return render(all);
+      render(all.filter(it =>
+        String(it.college_name||"").toLowerCase().includes(s) ||
+        String(it.student_name||"").toLowerCase().includes(s) ||
+        String(it.student_email||"").toLowerCase().includes(s)
+      ));
+    });
+
+    (async ()=>{
+      const u = JSON.parse(localStorage.getItem("user")||"null");
+      if (!localStorage.getItem("token")) return showError("سجّل الدخول أولاً.");
+      if (u?.role && u.role !== "admin") return showError("هذه الصفحة للإدارة فقط.");
+
+      try{
+        const d = await apiFetch("/api/admin/choices");
+        all = d.items || d?.items || [];
+        render(all);
+      }catch(e){ showError(e.message||String(e)); }
+    })();
+  </script>
+</body>
+</html>

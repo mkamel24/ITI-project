@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Register</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <main class="page">
+    <div class="container">
+      <div class="card pad-lg" style="max-width:720px; margin-inline:auto">
+        <h2 class="title" data-i18n="auth_register"></h2>
+        <p class="muted" data-i18n="project_sub"></p>
+        <div id="msg"></div>
+
+        <form class="form" id="regForm">
+          <div class="grid two">
+            <div>
+              <div class="label" data-i18n="full_name"></div>
+              <input class="input" id="full_name" required data-i18n="full_name" data-i18n-placeholder />
+            </div>
+            <div>
+              <div class="label" data-i18n="role"></div>
+              <select id="role" required>
+                <option value="student" data-i18n="role_student"></option>
+                <option value="admin" data-i18n="role_admin"></option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid two">
+            <div>
+              <div class="label" data-i18n="email"></div>
+              <input class="input" type="email" id="email" required data-i18n="email" data-i18n-placeholder />
+            </div>
+            <div>
+              <div class="label">Phone</div>
+              <input class="input" id="phone" placeholder="+20..." />
+            </div>
+          </div>
+
+          <div class="grid two">
+            <div>
+              <div class="label">Governorate</div>
+              <input class="input" id="governorate" placeholder="القاهرة / الدقهلية ..." />
+              <div class="help">اختياري</div>
+            </div>
+            <div>
+              <div class="label">High school score</div>
+              <input class="input" id="score" type="number" step="0.01" placeholder="مثال: 92.5" />
+              <div class="help">اختياري (للطلاب)</div>
+            </div>
+          </div>
+
+          <div class="grid two">
+            <div>
+              <div class="label" data-i18n="password"></div>
+              <input class="input" type="password" id="password" required data-i18n="password" data-i18n-placeholder />
+            </div>
+            <div>
+              <div class="label" data-i18n="password2"></div>
+              <input class="input" type="password" id="password2" required data-i18n="password2" data-i18n-placeholder />
+            </div>
+          </div>
+
+          <button class="btn primary" type="submit">➕ <span data-i18n="btn_submit"></span></button>
+          <div class="help">بعد التسجيل توجه لصفحة الدخول.</div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script>
+    function setMsg(html) {
+      document.getElementById("msg").innerHTML = html || "";
+    }
+    document.getElementById("regForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      setMsg("");
+      const p1 = document.getElementById("password").value;
+      const p2 = document.getElementById("password2").value;
+      if (p1 !== p2) {
+        return setMsg('<div class="error">❌ كلمات المرور غير متطابقة</div>');
+      }
+      try {
+        const payload = {
+          full_name: document.getElementById("full_name").value.trim(),
+          role: document.getElementById("role").value,
+          email: document.getElementById("email").value.trim(),
+          password: p1,
+          phone: document.getElementById("phone").value.trim(),
+          governorate: document.getElementById("governorate").value.trim(),
+          high_school_score: document.getElementById("score").value ? Number(document.getElementById("score").value) : null,
+        };
+        const data = await apiFetch("/api/auth/register", {
+          method:"POST",
+          body: JSON.stringify(payload)
+        });
+        setMsg('<div class="success">✅ تم إنشاء الحساب. يمكنك الآن تسجيل الدخول.</div>');
+        setTimeout(()=>location.href="login.html", 900);
+      } catch(err) {
+        setMsg('<div class="error">❌ ' + (err.message || err) + '</div>');
+      }
+    });
+  </script>
+</body>
+</html>
